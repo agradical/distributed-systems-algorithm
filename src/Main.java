@@ -15,12 +15,11 @@ public class Main {
 		String ids_str = "0";
 		
 		try {
-			File file = new File("input.dat");		
+			File file = new File(filename);		
 			BufferedReader br = new BufferedReader(new FileReader(file));
 			n_str = br.readLine();
 			ids_str = br.readLine();
-			
-	
+			br.close();
 		} catch(FileNotFoundException f) {
 			System.out.print(f.getMessage());
 			return;
@@ -35,7 +34,6 @@ public class Main {
 		for (int i=0; i< n; i++) {
 			ids[i] = Integer.parseInt(id_array_str[i]);
 		}
-		
 		
 	}
 }
