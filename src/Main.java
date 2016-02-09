@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.IOException;
 
 public class Main {
+
 	public static void main(String[] args) {
 		
 		String filename = "input.dat";
@@ -34,6 +35,9 @@ public class Main {
 		for (int i=0; i< n; i++) {
 			ids[i] = Integer.parseInt(id_array_str[i]);
 		}
+		
+		LeaderElection algo = new HS_Algorithm(n, ids);
+		algo.execute();
 		
 	}
 }
