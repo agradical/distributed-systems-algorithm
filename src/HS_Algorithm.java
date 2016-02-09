@@ -11,11 +11,17 @@ public class HS_Algorithm implements LeaderElection {
 
 	public static Semaphore phaseCompleted;
 	public static Semaphore roundCompleted;
+	
+	public static Semaphore phaseStarted;
+	public static Semaphore roundStarted;
 
 	public HS_Algorithm(int n, int[] ids) {
 		num_process = n;
+		
 		phaseCompleted = new Semaphore(n);
 		roundCompleted = new Semaphore(n);
+		phaseStarted = new Semaphore(n);
+		roundStarted = new Semaphore(n);
 		
 		processes = new Process[n];
 		this.threadPool = new ArrayList<Thread>();

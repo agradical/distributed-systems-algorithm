@@ -35,7 +35,7 @@ public class Process implements Runnable {
 
 		while((phase <= max_phase) && !HS_Algorithm.leaderElected) { 
 			try {
-				HS_Algorithm.phaseCompleted.acquire();
+				HS_Algorithm.phaseStarted.acquire();
 				this.leftInBuffer = null;
 				this.rightInBuffer = null;
 				Thread.sleep(100); // To ensure all have acquired the semaphore
@@ -45,7 +45,7 @@ public class Process implements Runnable {
 				Message message = generateMessage(leaderStatus, hops-1);
 				int round = 1; 
 				while ((round <= 2*hops) && !HS_Algorithm.leaderElected) {
-					HS_Algorithm.roundCompleted.acquire();
+					HS_Algorithm.roundStarted.acquire();
 					Thread.sleep(100);
 					
 					if (round == 1 && leaderStatus.equals(LeaderStatus.UNKNOWN)) {
@@ -56,11 +56,19 @@ public class Process implements Runnable {
 					
 					System.out.println("phase: " + phase + " round: "+round + " id: "+ this.id);
 					
-					HS_Algorithm.roundCompleted.release();
+					HS_Algorithm.roundCompleted.acquire();
+					if (HS_Algorithm.roundCompleted.availablePermits() == 0) {
+						HS_Algorithm.roundCompleted.release(HS_Algorithm.num_process);
+						HS_Algorithm.roundStarted.release(HS_Algorithm.num_process);
+					}
 					round++;
 				}
 
-				HS_Algorithm.phaseCompleted.release();
+				HS_Algorithm.phaseCompleted.acquire();
+				if(HS_Algorithm.phaseCompleted.availablePermits() == 0) {
+					HS_Algorithm.phaseCompleted.release(HS_Algorithm.num_process);
+					HS_Algorithm.phaseStarted.release(HS_Algorithm.num_process);
+				}
 				phase++;
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
@@ -112,18 +120,33 @@ public class Process implements Runnable {
 		
 		if(leftInBuffer != null) {
 			Message message = leftInBuffer;
-			System.out.println(message.hops_left + " : " + message.message +" : "+ this.id+"l");
+			//System.out.println(message.hops_left + " : " + message.message +" : "+ this.id+"l");
 			updateStatus(leaderStatus, message);
 			if(message.hops_left == 0) {
 				message.hops_left = message.hops_left - 1;
 				message.type = Message.MessageType.ACK;				
-				HS_Algorithm.processes[this.left_index].putMessageInBuffer(message, "r");;							
+				HS_Algorithm.processes[this.left_index].putMessageInBuffer(message, "r");;	
+			
+				System.out.println(this.id +"->"
+				+ HS_Algorithm.processes[this.left_index].id 
+				+ ": "+message.message
+				+ " ACK "
+				+ " Hop "+ message.hops_left);
+				
 			} else {
-				if (this.id == message.message) {					
+				if (this.id == message.message) {	
+					System.out.println(this.id +"=="+ this.id);
+
 				} else {
 					message.hops_left = message.hops_left - 1;
-
+					
 					HS_Algorithm.processes[this.right_index].putMessageInBuffer(message, "l");;
+					
+					System.out.println(this.id +"->"
+							+ HS_Algorithm.processes[this.right_index].id 
+							+ ": "+message.message
+							+ " ACK- "
+							+ " Hop "+ message.hops_left);
 				}
 			}
 			if (message.equals(leftInBuffer)) {
@@ -133,7 +156,7 @@ public class Process implements Runnable {
 		
 		if (rightInBuffer != null) {
 			Message message = rightInBuffer;
-			System.out.println(message.hops_left + " : " + message.message +" : "+ this.id+"r");
+			//System.out.println(message.hops_left + " : " + message.message +" : "+ this.id+"r");
 			updateStatus(leaderStatus, message);
 			
 			if(message.hops_left == 0) {
@@ -141,11 +164,25 @@ public class Process implements Runnable {
 				message.hops_left = message.hops_left - 1;
 
 				HS_Algorithm.processes[this.right_index].putMessageInBuffer(message, "l");
+
+				System.out.println(this.id +"->"
+						+ HS_Algorithm.processes[this.right_index].id 
+						+ ": "+message.message
+						+ " ACK-- "
+						+ " Hop "+ message.hops_left);
 			} else {
 				if (this.id == message.message) {
+					System.out.println(this.id +"=="+ this.id);
+
 				} else {
 					message.hops_left = message.hops_left - 1;
 					HS_Algorithm.processes[this.left_index].putMessageInBuffer(message, "r");;
+
+					System.out.println(this.id +"->"
+							+ HS_Algorithm.processes[this.left_index].id 
+							+ ": "+message.message
+							+ " ACK--- "
+							+ " Hop "+ message.hops_left);
 				}
 			}
 			if (message.equals(rightInBuffer)) {
