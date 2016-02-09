@@ -29,6 +29,7 @@ public class Main {
 			return;
 		}
 		
+		//parse read strings to integers 
 		Integer n = Integer.parseInt(n_str);
 		String[] id_array_str = ids_str.split(" ");
 		int[] ids = new int[n];
