@@ -14,7 +14,7 @@ public class HS_Algorithm implements LeaderElection {
 	
 	public static Semaphore phaseStarted;
 	public static Semaphore roundStarted;
-
+	
 	public HS_Algorithm(int n, int[] ids) {
 		num_process = n;
 		

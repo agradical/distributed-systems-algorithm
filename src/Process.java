@@ -31,14 +31,12 @@ public class Process implements Runnable {
 
 	@Override
 	public void run() {
-		// TODO Auto-generated method stub
 		int phase = 0;
 		int max_phase = (int)(Math.log(HS_Algorithm.num_process) / Math.log(2));
 
 		while((phase <= max_phase+1) && !HS_Algorithm.leaderElected) { 
 			try {
 				HS_Algorithm.phaseStarted.acquire();
-				Thread.sleep(100); // To ensure all have acquired the semaphore
 
 				this.leftInBuffer = null;
 				this.rightInBuffer = null;
@@ -53,21 +51,19 @@ public class Process implements Runnable {
 				int round = 1;
 				while ((round <= 2*hops) && !HS_Algorithm.leaderElected) {
 					HS_Algorithm.roundStarted.acquire();
-					Thread.sleep(100); // To ensure all have acquired the semaphore
+					Thread.sleep(100);// To ensure all have acquired the semaphore
 
-					System.out.println("phase: " + phase + " round: "+round + " id: "+ this.id);
+//					System.out.println("phase: " + phase + " round: "+round + " id: "+ this.id);
 
 					if (round == 1 && this.leaderStatus.equals(LeaderStatus.UNKNOWN)) {
 						sendExplore(hops);
 					} else if (round == 1 && this.leaderStatus.equals(LeaderStatus.NON_LEADER)) {
-						//sendExplore(message);
+						//do nothing
 					} else  {
 						
 						HS_Algorithm.processes[this.left_index].getMessages(this, "l");
 						HS_Algorithm.processes[this.right_index].getMessages(this, "r");
-						
-						Thread.sleep(100);// To synchronize: Each thread had fetched the message
-						
+												
 						processMessage(leaderStatus);					
 					}
 					
@@ -75,17 +71,20 @@ public class Process implements Runnable {
 					if (HS_Algorithm.roundCompleted.availablePermits() == 0) {
 						HS_Algorithm.roundCompleted.release(HS_Algorithm.num_process);
 						HS_Algorithm.roundStarted.release(HS_Algorithm.num_process);
+					
 					}
 					round++;
+
 				}
 
 				HS_Algorithm.phaseCompleted.acquire();
 				if(HS_Algorithm.phaseCompleted.availablePermits() == 0) {
 					HS_Algorithm.phaseCompleted.release(HS_Algorithm.num_process);
 					HS_Algorithm.phaseStarted.release(HS_Algorithm.num_process);
+					
 				}
 				phase++;
-				
+
 				
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
@@ -126,30 +125,29 @@ public class Process implements Runnable {
 				this.rightOutBuffer = null;
 			} else if (message.message < this.id) {
 				this.leaderStatus = LeaderStatus.NON_LEADER;
-				System.out.println(this.id + "---->"+this.leaderStatus.toString());
+//				System.out.println(this.id + "---->"+this.leaderStatus.toString());
 				if(message.hops_left == 0) {
 					message.hops_left = message.hops_left - 1;
 					message.type = Message.MessageType.ACK;
-
-					System.out.println("message:" + message.message + "--------------> ACK");
-
 					this.leftOutBuffer = message;
-					System.out.println(this.id +"->"
-							+ HS_Algorithm.processes[this.left_index].id 
-							+ ": "+message.message
-							+ " ACK "
-							+ " Hop "+ message.hops_left
-							+ "  "+ message.type.toString());
+
+//					System.out.println("message:" + message.message + "--------------> ACK");
+//					System.out.println(this.id +"->"
+//							+ HS_Algorithm.processes[this.left_index].id 
+//							+ ": "+message.message
+//							+ " Hop "+ message.hops_left
+//							+ "  "+ message.type.toString());
+//					
 				} else {
 					message.hops_left = message.hops_left - 1;	
 					this.rightOutBuffer = message;
 
-					System.out.println(this.id +"->"
-							+ HS_Algorithm.processes[this.right_index].id 
-							+ ": "+message.message
-							+ " ACK- "
-							+ " Hop "+ message.hops_left
-							+ "  "+ message.type.toString());
+//					System.out.println(this.id +"->"
+//							+ HS_Algorithm.processes[this.right_index].id 
+//							+ ": "+message.message
+//							+ " Hop "+ message.hops_left
+//							+ "  "+ message.type.toString());
+//					
 				}
 			} else {
 				this.rightOutBuffer = null;
@@ -165,31 +163,30 @@ public class Process implements Runnable {
 				this.rightOutBuffer = null;
 			} else if (message.message < this.id){
 				this.leaderStatus = LeaderStatus.NON_LEADER;
-				System.out.println(this.id + "---->"+this.leaderStatus.toString());
+//				System.out.println(this.id + "---->"+this.leaderStatus.toString());
 
 				if(message.hops_left == 0) {
 					message.type = Message.MessageType.ACK;
 					message.hops_left = message.hops_left - 1;
-					System.out.println("message:" + message.message + "--------------> ACK");
-
 					this.rightOutBuffer = message;
 
-					System.out.println(this.id +"->"
-							+ HS_Algorithm.processes[this.right_index].id 
-							+ ": "+message.message
-							+ " ACK-- "
-							+ " Hop "+ message.hops_left
-							+ "  "+ message.type.toString());
+//					System.out.println("message:" + message.message + "--------------> ACK");				
+//					System.out.println(this.id +"->"
+//							+ HS_Algorithm.processes[this.right_index].id 
+//							+ ": "+message.message
+//							+ " Hop "+ message.hops_left
+//							+ "  "+ message.type.toString());
+					
 				} else {
 					message.hops_left = message.hops_left - 1;
 					this.leftOutBuffer = message;
 
-					System.out.println(this.id +"->"
-							+ HS_Algorithm.processes[this.left_index].id 
-							+ ": "+message.message
-							+ " ACK--- "
-							+ " Hop "+ message.hops_left
-							+ "  "+ message.type.toString());
+//					System.out.println(this.id +"->"
+//							+ HS_Algorithm.processes[this.left_index].id 
+//							+ ": "+message.message
+//							+ " Hop "+ message.hops_left
+//							+ "  "+ message.type.toString());
+					
 				}
 				
 			} else {
@@ -209,18 +206,17 @@ public class Process implements Runnable {
 		this.leftOutBuffer = msgleft;
 		this.rightOutBuffer = msgright;
 		
-		System.out.println(this.id +"->"
-				+ HS_Algorithm.processes[this.left_index].id 
-				+ ": "+msgleft.message
-				+ " EXP "
-				+ " Hop "+ msgleft.hops_left
-				+ "  "+ msgleft.type.toString());
-		System.out.println(this.id +"->"
-				+ HS_Algorithm.processes[this.right_index].id 
-				+ ": "+msgright.message
-				+ " EXP "
-				+ " Hop "+ msgright.hops_left
-				+ "  "+ msgright.type.toString());
+//		System.out.println(this.id +"->"
+//				+ HS_Algorithm.processes[this.left_index].id 
+//				+ ": "+msgleft.message
+//				+ " Hop "+ msgleft.hops_left
+//				+ "  "+ msgleft.type.toString());
+//		System.out.println(this.id +"->"
+//				+ HS_Algorithm.processes[this.right_index].id 
+//				+ ": "+msgright.message
+//				+ " Hop "+ msgright.hops_left
+//				+ "  "+ msgright.type.toString());
+		
 	}
 	public Message generateMessage(LeaderStatus leaderStatus, int hops) {	
 		Message message = new Message(Message.MessageType.EXPLORE, this.id, hops);
