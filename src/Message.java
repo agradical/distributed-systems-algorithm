@@ -1,4 +1,3 @@
-
 public class Message {
 	public static enum MessageType {
 		ACK, EXPLORE, LEADER

@@ -1,10 +1,3 @@
-/*
- * Group Members
- * 1) Ankur Gupta axg156130 (axg156130)
- * 2) Upendra Govindagowda (uxg140230)
- * 3) Sarvotam Pal Singh (sxs155032)
- */
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;

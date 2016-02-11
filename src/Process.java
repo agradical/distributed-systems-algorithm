@@ -42,9 +42,6 @@ public class Process implements Runnable {
 		int phase = 0;
 		while(true) { 
 			try {			
-				//clearing left and right buffers
-				this.leftOutBuffer = null;
-				this.rightOutBuffer = null;
 				
 				this.left_ack = false;
 				this.right_ack = false;
