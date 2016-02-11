@@ -1,14 +1,22 @@
 public class Process implements Runnable {
 	
+	// buffers to place message for transfer to neighbor
 	public Message leftInBuffer;
 	public Message rightInBuffer;
 	public Message leftOutBuffer;
 	public Message rightOutBuffer;
 
-	
+	//to keep track of leader announcement
+	public int leader_id = 0;
+	int announcement_sent_or_recieved = 0;
+
+	//
+	public boolean left_ack;
+	public boolean right_ack;
+
+	//attributes
 	public int id;
 	public int index;
-	
 	public int left_index;
 	public int right_index;
 	
@@ -32,79 +40,93 @@ public class Process implements Runnable {
 	@Override
 	public void run() {
 		int phase = 0;
-		int max_phase = (int)(Math.log(HS_Algorithm.num_process) / Math.log(2));
-
-		while((phase <= max_phase+1) && !HS_Algorithm.leaderElected) { 
-			try {
-				HS_Algorithm.phaseStarted.acquire();
-
-				this.leftInBuffer = null;
-				this.rightInBuffer = null;
+		while(true) { 
+			try {			
+				//clearing left and right buffers
 				this.leftOutBuffer = null;
 				this.rightOutBuffer = null;
 				
-				int max_possible_hops = (int)Math.pow(2, phase);
+				this.left_ack = false;
+				this.right_ack = false;
 				
-				int hops =  (max_possible_hops > HS_Algorithm.num_process)
-						  ? HS_Algorithm.num_process : max_possible_hops ;
+				int hops = (int)Math.pow(2, phase);
+				
+				System.out.println("Process id: "+ this.id +" starts phase: "+phase);
 				
 				int round = 1;
-				while ((round <= 2*hops) && !HS_Algorithm.leaderElected) {
+				while ((round <= 2*hops)) {
+					// Semaphore to ensure all threads start round at same time
 					HS_Algorithm.roundStarted.acquire();
-					Thread.sleep(100);// To ensure all have acquired the semaphore
+					Thread.sleep(10);// To ensure all have acquired the semaphore
 
-//					System.out.println("phase: " + phase + " round: "+round + " id: "+ this.id);
-
-					if (round == 1 && this.leaderStatus.equals(LeaderStatus.UNKNOWN)) {
+					//send announcement
+					if (round == 1 && this.leaderStatus.equals(LeaderStatus.LEADER)) {
+						sendAnnouncement();
+						System.out.println("Sending Announcement.....");
+						this.announcement_sent_or_recieved = 1;
+					}
+					//send explore message
+					else if (round == 1 && this.leaderStatus.equals(LeaderStatus.UNKNOWN)) {
 						sendExplore(hops);
-					} else if (round == 1 && this.leaderStatus.equals(LeaderStatus.NON_LEADER)) {
+					}
+					else if (round == 1 && this.leaderStatus.equals(LeaderStatus.NON_LEADER)) {
 						//do nothing
-					} else  {
+					} 
+					
+					// if process is not a leader than all it has to do is
+					// pass the messages around
+					else  {
 						
 						HS_Algorithm.processes[this.left_index].getMessages(this, "l");
 						HS_Algorithm.processes[this.right_index].getMessages(this, "r");
-												
-						processMessage(leaderStatus);					
+						
+						processMessage(leaderStatus);	
 					}
 					
+					// Semaphore to ensure all threads start round at same time
 					HS_Algorithm.roundCompleted.acquire();
+					
+					//Login to ensure that thread doesn't start next phase until all 
+					// threads completed the round
 					if (HS_Algorithm.roundCompleted.availablePermits() == 0) {
 						HS_Algorithm.roundCompleted.release(HS_Algorithm.num_process);
-						HS_Algorithm.roundStarted.release(HS_Algorithm.num_process);
-					
+						HS_Algorithm.roundStarted.release(HS_Algorithm.num_process);					
 					}
-					round++;
-
-				}
-
-				HS_Algorithm.phaseCompleted.acquire();
-				if(HS_Algorithm.phaseCompleted.availablePermits() == 0) {
-					HS_Algorithm.phaseCompleted.release(HS_Algorithm.num_process);
-					HS_Algorithm.phaseStarted.release(HS_Algorithm.num_process);
+									
+					round++;				
 					
+					// if both ack received current thread is done with the phase
+					if(left_ack && right_ack) {
+						break;
+					}
 				}
-				phase++;
+				// if leader announcement has been received, exit the loop and terminate
+				if (this.leader_id != 0 && this.announcement_sent_or_recieved != 0) {
+					break;
+				}
+				phase++;				
 
-				
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
-	}
 		
+	}
+	
+	//Updating status
 	public void updateStatus(LeaderStatus leaderStatus, Message message) {
 		if(this.leaderStatus.equals(LeaderStatus.UNKNOWN)) {
 			if (message.type.equals(Message.MessageType.EXPLORE)) {
 				if (message.message == this.id) {
 					this.leaderStatus = LeaderStatus.LEADER;
 					System.out.println("LEADER------------------------------------------------------: "+ this.id);
-					HS_Algorithm.leaderElected = true;
+					this.leader_id = this.id;
 				}
 			}
 		}
 	}
 	
+	// Getting messages from the neighboring nodes
 	public void getMessages(Process p, String direction) {
 		if(direction.equals("l")) {
 			p.leftInBuffer = this.rightOutBuffer;
@@ -116,79 +138,85 @@ public class Process implements Runnable {
 		}
 	}
 	
+	// Process messages fetched from neighbors
 	public void processMessage(LeaderStatus leaderStatus) {
 		
 		if(this.leftInBuffer != null) {
 			Message message = this.leftInBuffer;
+			// if message received equals to the pid of process
+			// set flag to track ack received from left
 			if (message.message == this.id) {
 				this.leftOutBuffer = null;
 				this.rightOutBuffer = null;
-			} else if (message.message < this.id) {
+				this.left_ack = true;
+				
+			}
+			
+			else if (message.message > this.id) {
 				this.leaderStatus = LeaderStatus.NON_LEADER;
-//				System.out.println(this.id + "---->"+this.leaderStatus.toString());
-				if(message.hops_left == 0) {
+
+				// if message id received is Announcement
+				// set the leader id  and pass it to neighbor
+				if (message.type.equals(Message.MessageType.LEADER)) {
+					this.leader_id = message.message;
+					this.announcement_sent_or_recieved = 1;
+					this.rightOutBuffer = message;
+					
+				}
+				// if the hops left equals 0 return back to the message
+				else if(message.hops_left == 0) {
 					message.hops_left = message.hops_left - 1;
 					message.type = Message.MessageType.ACK;
 					this.leftOutBuffer = message;
 
-//					System.out.println("message:" + message.message + "--------------> ACK");
-//					System.out.println(this.id +"->"
-//							+ HS_Algorithm.processes[this.left_index].id 
-//							+ ": "+message.message
-//							+ " Hop "+ message.hops_left
-//							+ "  "+ message.type.toString());
-//					
 				} else {
 					message.hops_left = message.hops_left - 1;	
-					this.rightOutBuffer = message;
-
-//					System.out.println(this.id +"->"
-//							+ HS_Algorithm.processes[this.right_index].id 
-//							+ ": "+message.message
-//							+ " Hop "+ message.hops_left
-//							+ "  "+ message.type.toString());
-//					
+					this.rightOutBuffer = message;				
 				}
+				
+			// if message received is greater ignore the message
 			} else {
 				this.rightOutBuffer = null;
 			}
+			
 			updateStatus(this.leaderStatus, message);
 			this.leftInBuffer = null;			
 		}
 
+		
 		if (this.rightInBuffer != null) {
 			Message message = this.rightInBuffer;
+
+			// if message received equals to the pid of process
+			// set flag to track ack received from left
 			if (message.message == this.id) {
 				this.leftOutBuffer = null;
 				this.rightOutBuffer = null;
-			} else if (message.message < this.id){
-				this.leaderStatus = LeaderStatus.NON_LEADER;
-//				System.out.println(this.id + "---->"+this.leaderStatus.toString());
+				this.right_ack = true;
 
-				if(message.hops_left == 0) {
+			}
+			
+			else if (message.message > this.id){
+				this.leaderStatus = LeaderStatus.NON_LEADER;
+				
+				// if message id received is Announcement
+				// set the leader id  and pass it to neighbor
+				if (message.type.equals(Message.MessageType.LEADER)) {
+					this.leader_id = message.message;
+					this.announcement_sent_or_recieved = 1;
+					this.leftOutBuffer = message;
+					
+				// if the hops left equals 0 return back to the message	
+				} else if(message.hops_left == 0) {
 					message.type = Message.MessageType.ACK;
 					message.hops_left = message.hops_left - 1;
 					this.rightOutBuffer = message;
-
-//					System.out.println("message:" + message.message + "--------------> ACK");				
-//					System.out.println(this.id +"->"
-//							+ HS_Algorithm.processes[this.right_index].id 
-//							+ ": "+message.message
-//							+ " Hop "+ message.hops_left
-//							+ "  "+ message.type.toString());
 					
 				} else {
 					message.hops_left = message.hops_left - 1;
 					this.leftOutBuffer = message;
-
-//					System.out.println(this.id +"->"
-//							+ HS_Algorithm.processes[this.left_index].id 
-//							+ ": "+message.message
-//							+ " Hop "+ message.hops_left
-//							+ "  "+ message.type.toString());
-					
 				}
-				
+			// if message received is greater ignore the message
 			} else {
 				this.leftOutBuffer = null;
 			}
@@ -200,28 +228,28 @@ public class Process implements Runnable {
 	
 	public void sendExplore(int hops) {
 
+		//generate message and send to both direction
 		Message msgleft = generateMessage(LeaderStatus.UNKNOWN, hops-1);
 		Message msgright = generateMessage(LeaderStatus.UNKNOWN, hops-1);
 
 		this.leftOutBuffer = msgleft;
 		this.rightOutBuffer = msgright;
-		
-//		System.out.println(this.id +"->"
-//				+ HS_Algorithm.processes[this.left_index].id 
-//				+ ": "+msgleft.message
-//				+ " Hop "+ msgleft.hops_left
-//				+ "  "+ msgleft.type.toString());
-//		System.out.println(this.id +"->"
-//				+ HS_Algorithm.processes[this.right_index].id 
-//				+ ": "+msgright.message
-//				+ " Hop "+ msgright.hops_left
-//				+ "  "+ msgright.type.toString());
-		
 	}
+	
+	public void sendAnnouncement() {
+		//generate message and send to only one direction
+		Message msgleft = generateMessage(LeaderStatus.LEADER, -1);
+		this.leftOutBuffer = msgleft;
+	}
+	
 	public Message generateMessage(LeaderStatus leaderStatus, int hops) {	
-		Message message = new Message(Message.MessageType.EXPLORE, this.id, hops);
-
-		return message;
+		if (leaderStatus.equals(LeaderStatus.UNKNOWN)) {
+			Message message = new Message(Message.MessageType.EXPLORE, this.id, hops);
+			return message;
+		} else {
+			Message message = new Message(Message.MessageType.LEADER, this.id, hops);
+			return message;
+		}
 	}
 	
 }
